@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+#
+
+
+import rospy
+from sensor_msgs.msg import JointState
+import numpy as np
+
+from markers import FrameMarker
+from lab8functions import fkine, rot2quat, TF2xyzquat, copy, pi, jacobian_pose
+
+
+def damped_pinv(J, lamb=1e-3):
+    Jt = J.T
+    return Jt.dot(np.linalg.inv(J.dot(Jt) + lamb**2 * np.eye(J.shape[0])))
+
+
+def is_rotation_matrix(R):
+    R = R[0:3, 0:3]
+    print(R.shape)
+    Rt = np.transpose(R)
+    should_be_identity = np.dot(Rt, R)
+    Ii = np.identity(3, dtype=R.dtype)
+    n = np.linalg.norm(Ii - should_be_identity)
+    return n < 1e-6 and np.abs(np.linalg.det(R) - 1.0) < 1e-6
+
+
+# Initialize the node
+rospy.init_node("testKineControlPose")
+print("starting motion ... ")
+# Publisher: publish to the joint_states topic
+pub = rospy.Publisher("joint_states", JointState, queue_size=1000)
+# Markers for the current and desired positions
+bmarker_current = FrameMarker()
+bmarker_desired = FrameMarker(0.5)
+
+# Joint names
+jnames = ["rev1", "rev2", "rev3", "rev4", "rev5", "rev6"]
+
+# Desired pose
+ang = pi / 3
+Rd = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+Rd2 = np.array(
+[[ 1.       ,  0.        , 0.        ],
+ [ 0.       ,  0.70710678,-0.70710678],
+ [ 0.       ,  0.70710678, 0.70710678]]
+)
+
+Rd3 = np.array(
+[[ 0.70710678 ,0.,         0.70710678],
+ [ 0.         ,1.,         0.        ],
+ [-0.70710678 ,0.,         0.70710678]]
+)
+
+Rd4 = np.array(
+[[ 0.70710678,-0.70710678, 0.        ],
+ [ 0.70710678, 0.70710678, 0.        ],
+ [ 0.        , 0.        , 1.        ]]
+)
+
+
+qd = np.array([0, 1, 0, 0])
+qd2 = rot2quat(Rd2)
+qd3 = rot2quat(Rd3)
+qd4 = rot2quat(Rd4)
+print(qd)
+# Find an xd that the robot can reach
+xd = np.array([-0.3, 0.0, 0.2, qd[0], qd[1], qd[2], qd[3]])
+xdd = [
+    np.array([0.03, 0.07, 0.02, qd[0], qd[1], qd[2], qd[3]]),
+    np.array([0.1, 0.24, 0.14, qd2[0], qd2[1], qd2[2], qd2[3]]),
+    np.array([0.1, 0.1, 0.1, qd3[0], qd3[1], qd3[2], qd3[3]]),
+    np.array([ 0.1, -0.1, 0.3, qd4[0], qd4[1], qd4[2], qd4[3]]),
+]
+# xd  = np.array([0.5, 0.5, 0.6, np.cos(ang/2.0), 0, 0, np.sin(ang/2.0)])
+# Initial configuration
+q0 = np.array([0.0, -1.0, 1.12, -1.8, -1.6, 0.0])
+
+# Resulting initial pose (end effector with respect to the base link)
+T = fkine(q0)
+x0 = TF2xyzquat(T)
+# print(x0)
+
+# Markers for the current and the desired pose
+bmarker_current.setPose(x0)
+bmarker_desired.setPose(xd)
+
+# Instance of the JointState message
+jstate = JointState()
+# Values of the message
+jstate.header.stamp = rospy.Time.now()
+jstate.name = jnames
+# Add the head joint value (with value 0) to the joints
+jstate.position = q0
+
+# Frequency (in Hz) and control period
+freq = 200
+dt = 1.0 / freq
+rate = rospy.Rate(freq)
+
+# Initial joint configuration
+q = copy(q0)
+x = copy(x0)
+quat = x[3:7]
+koa = 1
+kob = 1
+ko = 1
+kpos = 0.4
+k = np.array(
+    [
+        [kpos, 0, 0, 0, 0, 0, 0],
+        [0, kpos, 0, 0, 0, 0, 0],
+        [0, 0, kpos, 0, 0, 0, 0],
+        [0, 0, 0, ko, 0, 0, 0],
+        [0, 0, 0, 0, kob, 0, 0],
+        [0, 0, 0, 0, 0, koa, 0],
+        [0, 0, 0, 0, 0, 0, koa],
+    ]
+)
+# Initialize the derror vector (derivative of the error)
+derror = np.zeros(7)
+paso = 0
+xd = xdd[paso]
+# Main loop
+# for i in range(1):
+while not rospy.is_shutdown():
+    # Current time (needed for ROS)
+    jstate.header.stamp = rospy.Time.now()
+    # Kinematic control law for the pose (complete here)
+    # --------------------------------------------------
+    J = jacobian_pose(q)
+
+    w = quat[0]
+    e = quat[1:4]
+    wd = qd[0]
+    ed = qd[1:4]
+    we = wd * w + ed.T.dot(e)
+    # ee = -wd * e + w * ed - np.cross(ed, e)
+    ee = x - xd
+    norm = np.sqrt(np.sum(ee**2))
+    if norm < 0.016:
+        paso += 1
+        _ = input("enter para ir a la siguiente posicion...")
+        xd = xdd[paso]
+    de = -k.dot(ee)
+    print(x)
+
+    # Regularize J to improve numerical stability
+    dpinv = damped_pinv(J)
+    dq = dpinv.dot(de)
+
+    vel_limite = 10
+    for i in range(dq.shape[0]):
+        if dq[i] > vel_limite:
+            dq[i] = vel_limite
+        elif dq[i] < -vel_limite:
+            dq[i] = -vel_limite
+
+    q = q + dt * dq
+    limite = 2 * 3.14
+    limite2 = 3.14
+    for i in range(q.shape[0]):
+        if i == 2:
+            if q[i] > limite2:
+                q[i] = limite2
+            elif q[i] < -limite2:
+                q[i] = -limite2
+        else:
+            if q[i] > limite:
+                q[i] = limite
+            elif q[i] < -limite:
+                q[i] = -limite
+
+    # Current configuration tranformation to current position
+    T = fkine(q)
+    if not is_rotation_matrix(T):
+        raise ValueError(dpinv)
+
+    x = TF2xyzquat(T)
+    quat = x[3:7]
+    # Publish the message
+    jstate.position = q
+    pub.publish(jstate)
+    bmarker_desired.setPose(xd)
+    bmarker_current.setPose(x)
+    # Wait for the next iteration
+    rate.sleep()

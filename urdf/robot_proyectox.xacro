@@ -1,0 +1,162 @@
+<?xml version="1.0"?>
+<robot name="robot_proyecto" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="base_radio" value="0.15" />
+  <xacro:property name="base_altura" value="0.01" />
+  <xacro:property name="Tronco_radio" value="0.04" />
+  <xacro:property name="Tronco_altura" value="0.154" />
+  <xacro:property name="Muneca2_radio" value="0.03" />
+  <xacro:property name="Muneca2_altura" value="0.08" />
+  <xacro:property name="Antebrazo_radio" value="0.02" />
+  <xacro:property name="Antebrazo_altura" value="0.215" />
+  <xacro:property name="Muneca1_radio" value="0.01" />
+  <xacro:property name="Muneca1_altura" value="0.04" />
+  <xacro:property name="Brazo_radio" value="0.02" />
+  <xacro:property name="Brazo_altura" value="0.16" />
+
+  <material name="yellow">
+    <color rgba="1 1 0 1" />
+  </material>
+  <material name="white">
+    <color rgba="1 1 1 1" />
+  </material>
+  <material name="blue">
+    <color rgba="0 0 1 1" />
+  </material>
+  <material name="green">
+    <color rgba="0 1 0 1" />
+  </material>
+  <material name="red">
+    <color rgba="1 0 0 1" />
+  </material>
+  <material name="black">
+    <color rgba="0 0 0 1" />
+  </material>
+
+  <link name="base">
+    <visual>
+      <geometry>
+        <mesh filename="package://lab2/urdf/Base.stl" />
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 ${base_altura/2}" />
+      <material name="white" />
+    </visual>
+  </link>
+
+  <link name="Tronco">
+    <visual>
+      <geometry>
+        <mesh filename="package://lab2/urdf/Tronco.stl" />
+      </geometry>
+      <material name="green" />
+      <origin xyz="0 0 0" rpy="0 0 1.57" />
+    </visual>
+  </link>
+
+  <link name="Muneca2">
+    <visual>
+      <geometry>
+        <mesh filename="package://lab2/urdf/Muneca2.stl" />
+      </geometry>
+      <origin xyz="-0.01 0 0" rpy="0 0 1.57" />
+      <material name="yellow" />
+    </visual>
+  </link>
+
+
+  <link name="Muneca1">
+    <visual>
+      <geometry>
+        <mesh filename="package://lab2/urdf/Muneca1.stl" />
+      </geometry>
+      <origin xyz="-0.01 0 0" rpy="1.57 0 1.57" />
+      <material name="white" />
+    </visual>
+  </link>
+
+
+  <link name="Antebrazo">
+    <visual>
+      <geometry>
+        <mesh filename="package://lab2/urdf/Antebrazo.stl" />
+      </geometry>
+      <origin xyz="-0.02 0 0" rpy="0 0 1.57" />
+      <material name="blue" />
+    </visual>
+  </link>
+
+
+  <link name="Brazo">
+    <visual>
+      <geometry>
+        <mesh filename="package://lab2/urdf/Brazo.stl" />
+      </geometry>
+      <origin xyz="-0.02 0 0" rpy="1.57 0 1.57" />
+      <material name="blue" />
+    </visual>
+  </link>
+
+
+  <link name="Grip">
+    <visual>
+      <geometry>
+        <mesh filename="package://lab2/urdf/Gripp.stl" />
+      </geometry>
+      <origin xyz="0.04 0 0.01" rpy="0 3.1416 0" />
+      <material name="red" />
+    </visual>
+  </link>
+
+
+  <joint name="rev1" type="revolute">
+    <parent link="base" />
+    <child link="Tronco" />
+    <origin xyz="0 0 ${base_altura}" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.57" upper="1.57" effort="1" velocity="1" />
+  </joint>
+
+
+  <joint name="rev2" type="revolute">
+    <parent link="Tronco" />
+    <child link="Antebrazo" />
+    <origin xyz="0 0 ${Tronco_altura}" rpy="3.14 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.57" effort="1" velocity="1" />
+  </joint>
+
+
+  <joint name="rev3" type="revolute">
+    <parent link="Antebrazo" />
+    <child link="Brazo" />
+    <origin xyz="${Antebrazo_altura} 0 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.57" upper="1.57" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="rev4" type="revolute">
+    <parent link="Brazo" />
+    <child link="Muneca1" />
+    <origin xyz="${Brazo_altura} 0 0" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.57" upper="1.57" effort="1" velocity="1" />
+  </joint>
+  
+  <joint name="rev5" type="revolute">
+    <parent link="Muneca1" />
+    <child link="Muneca2" />
+    <origin xyz="${Muneca1_altura} 0 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.57" upper="1.57" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="rev6" type="revolute">
+    <parent link="Muneca2" />
+    <child link="Grip" />
+    <origin xyz="${Muneca2_altura/2} 0 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.57" upper="1.57" effort="1" velocity="1" />
+  </joint>
+
+
+</robot>
